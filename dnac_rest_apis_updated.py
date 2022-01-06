@@ -44,8 +44,8 @@ urllib3.disable_warnings(InsecureRequestWarning)  # disable insecure https warni
 
 # Cisco DNA Center info
 
-username = 'admin'
-password = 'C!sc0123'
+username = 'username'
+password = 'password'
 DNAC_URL = 'https://10.122.20.139'
 
 
