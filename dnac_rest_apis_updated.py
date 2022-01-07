@@ -35,6 +35,7 @@ import datetime
 import requests
 import urllib3
 import json
+import re
 
 from urllib3.exceptions import InsecureRequestWarning  # for insecure https warnings
 from requests.auth import HTTPBasicAuth  # for Basic Auth
@@ -65,7 +66,6 @@ def get_dnac_jwt_token(dnac_auth):
     dnac_jwt_token = response.json()['Token']
     return dnac_jwt_token
 
-
 def get_all_device_info(limit, dnac_jwt_token):
     """
     The function will return all network devices info, using the specified limit of devices/API Call
@@ -87,6 +87,48 @@ def get_all_device_info(limit, dnac_jwt_token):
         offset += limit
     return all_devices_list
 
+
+def get_all_site_info(limit, dnac_jwt_token):
+    """
+    The function will return all site info, using the specified limit of devices/API Call
+    :param limit: the number of sites to return per API call
+    :param dnac_jwt_token: Cisco DNA C token
+    :return: DNA C all site info
+    """
+    offset = 1
+    all_sites_info = []
+    sites_info = ['']  # assign a value, to make sure the API call will run at least once
+    while sites_info:
+        sites_info = ''
+        url = DNAC_URL + '/dna/intent/api/v1/site/count'
+        header = {'content-type': 'application/json', 'x-auth-token': dnac_jwt_token}
+        sites_count_response = requests.get(url, headers=header, verify=False)
+        total_sites = sites_count_response.json()['response']
+        url = DNAC_URL + '/dna/intent/api/v1/site?offset=' + str(offset) + '&limit=' + str(limit)
+        header = {'content-type': 'application/json', 'x-auth-token': dnac_jwt_token}
+        sites_response = requests.get(url, headers=header, verify=False)
+        sites_json = sites_response.json()
+        sites_info = sites_json['response']
+        all_sites_info += sites_info
+        offset += limit
+        if offset > total_sites:
+            break
+    return all_sites_info
+
+
+def get_siteid_mapping_dict(all_sites_info):
+    siteid_mapping_dict = {}
+    for site in all_sites_info:
+        siteid_mapping_dict[site['siteNameHierarchy']] = site['id']
+    return siteid_mapping_dict
+
+
+def get_siteid(all_sites_info, site_keyword):
+    siteid = []
+    for site in all_sites_info:
+        if site_keyword in site['siteNameHierarchy']:
+            siteid.append(site['id'])
+    return siteid
 
 def get_all_device_dict(limit, dnac_jwt_token):
     """
@@ -131,7 +173,7 @@ def get_overall_network_health(dnac_jwt_token):
     return network_health
 
 
-def get_all_device_health_dict(limit, dnac_jwt_token, deviceRole = ''):
+def get_all_device_health_dict(limit, dnac_jwt_token, deviceRole='', location_key=''):
     """
     The function will return all network devices health info, using the specified limit of devices/API Call
     :param limit: the number of devices to return per API call
@@ -157,11 +199,12 @@ def get_all_device_health_dict(limit, dnac_jwt_token, deviceRole = ''):
             all_devices_health_list += all_devices_health
             offset += limit
     for device in all_devices_health_list:
-        all_devices_health_dict.update({device['name']: device})
+        if re.search(location_key, device['location']):
+            all_devices_health_dict.update({device['name']: device})
     return all_devices_health_dict
 
 
-def get_overall_devices_health(all_devices_health_dict, deviceRole = ''):
+def get_overall_devices_health(all_devices_health_dict, deviceRole=''):
     """
     This function will correlate data from the all_devices_health_dict
     :all_devices_health_dict: all_devices_health_dict
@@ -176,22 +219,27 @@ def get_overall_devices_health(all_devices_health_dict, deviceRole = ''):
                                                 'Down': 0,
                                                 'Reachable': 0,
                                                 'Ping Reachable': 0,
-                                                'down_list': []
+                                                'down_list': [],
+                                                'up_list': []
                                 }
                             }
     overall_devices_health[deviceRole]['Total'] = len(all_devices_health_dict)
     for device in all_devices_health_dict:
+        device_data = {}
         if all_devices_health_dict[device]['reachabilityHealth'] == 'DOWN' or \
             all_devices_health_dict[device]['reachabilityHealth'] == 'UNREACHABLE':
             overall_devices_health[deviceRole]['Down'] += 1
-            overall_devices_health[deviceRole]['down_list'] += { all_devices_health_dict[device]['name'],
-                                                    all_devices_health_dict[device]['ipAddress'],
-                                                    all_devices_health_dict[device]['ipAddress'],
-                                                    all_devices_health_dict[device]['location'] }
-        elif all_devices_health_dict[device]['reachabilityHealth'] == 'REACHABLE':
+            device_data = all_devices_health_dict[device]
+            overall_devices_health[deviceRole]['down_list'].append(device_data)
+        elif all_devices_health_dict[device]['reachabilityHealth'] == 'REACHABLE' or \
+            all_devices_health_dict[device]['reachabilityHealth'] == 'UP':
             overall_devices_health[deviceRole]['Reachable'] += 1
+            device_data = all_devices_health_dict[device]
+            overall_devices_health[deviceRole]['up_list'].append(device_data)
         elif all_devices_health_dict[device]['reachabilityHealth'] == 'PING_REACHABLE':
             overall_devices_health[deviceRole]['Ping Reachable'] += 1
+            device_data = all_devices_health_dict[device]
+            overall_devices_health[deviceRole]['up_list'].append(device_data)
     overall_devices_health[deviceRole]['Up'] = overall_devices_health[deviceRole]['Total'] - overall_devices_health[deviceRole]['Down']
     return overall_devices_health
 
@@ -230,41 +278,42 @@ def main():
     # overall_network_health = get_overall_network_health(dnac_auth)
     # print(json.dumps(overall_network_health))  # save the network health to Splunk App index
 
-    # get all the devices health info, 500 devices collect per each API call (this is the max), print them as dict
-    all_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='')
+    # get all the devices health info, 1000 devices collect per each API call (this is the max), print them as dict
+    all_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='', location_key='')
     # print(json.dumps(all_devices_health_dict))  # save the all devices info to Splunk App index
     overall_all_devices_health = get_overall_devices_health(all_devices_health_dict, deviceRole='')
     print(json.dumps(overall_all_devices_health))
 
-    # get all the CORE health info, 500 devices collect per each API call (this is the max), print them as dict
-    CORE_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='CORE')
+    # get all the CORE health info, 1000 devices collect per each API call (this is the max), print them as dict
+    CORE_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='CORE',location_key='')
     overall_CORE_devices_health = get_overall_devices_health(CORE_devices_health_dict, deviceRole='CORE')
     print(json.dumps(overall_CORE_devices_health))
 
-    # get all the ACCESS health info, 500 devices collect per each API call (this is the max), print them as dict
-    ACCESS_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='ACCESS')
+    # get all the ACCESS health info, 1000 devices collect per each API call (this is the max), print them as dict
+    ACCESS_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='ACCESS', location_key='')
     overall_ACCESS_devices_health = get_overall_devices_health(ACCESS_devices_health_dict, deviceRole='ACCESS')
     print(json.dumps(overall_ACCESS_devices_health))
 
-    # get all the DISTRIBUTION health info, 500 devices collect per each API call (this is the max), print them as dict
-    DISTRIBUTION_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='DISTRIBUTION')
+    # get all the DISTRIBUTION health info, 1000 devices collect per each API call (this is the max), print them as dict
+    DISTRIBUTION_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='DISTRIBUTION', location_key='')
     overall_DISTRIBUTION_devices_health = get_overall_devices_health(DISTRIBUTION_devices_health_dict, deviceRole='DISTRIBUTION')
     print(json.dumps(overall_DISTRIBUTION_devices_health))
 
-    # get all the ROUTER health info, 500 devices collect per each API call (this is the max), print them as dict
-    ROUTER_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='ROUTER')
+    # get all the ROUTER health info, 1000 devices collect per each API call (this is the max), print them as dict
+    ROUTER_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='ROUTER', location_key='')
     overall_ROUTER_devices_health = get_overall_devices_health(ROUTER_devices_health_dict, deviceRole='ROUTER')
     print(json.dumps(overall_ROUTER_devices_health))
 
-    # get all the WLC health info, 500 devices collect per each API call (this is the max), print them as dict
-    WLC_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='WLC')
+    # get all the WLC health info, 1000 devices collect per each API call (this is the max), print them as dict
+    WLC_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='WLC', location_key='')
     overall_WLC_devices_health = get_overall_devices_health(WLC_devices_health_dict, deviceRole='WLC')
     print(json.dumps(overall_WLC_devices_health))
 
-    # get all the AP health info, 500 devices collect per each API call (this is the max), print them as dict
-    AP_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='AP')
+    # get all the AP health info, 1000 devices collect per each API call (this is the max), print them as dict
+    AP_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='AP', location_key='^Global/S')
     overall_AP_devices_health = get_overall_devices_health(AP_devices_health_dict, deviceRole='AP')
     print(json.dumps(overall_AP_devices_health))
+
 
 if __name__ == '__main__':
     main()
