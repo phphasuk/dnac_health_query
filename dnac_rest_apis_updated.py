@@ -46,7 +46,7 @@ urllib3.disable_warnings(InsecureRequestWarning)  # disable insecure https warni
 
 username = 'admin'
 password = 'C!sc0123'
-DNAC_URL = 'https://10.122.21.195'
+DNAC_URL = 'https://10.122.20.139'
 
 
 DNAC_AUTH = HTTPBasicAuth(username, password)
@@ -161,34 +161,38 @@ def get_all_device_health_dict(limit, dnac_jwt_token, deviceRole = ''):
     return all_devices_health_dict
 
 
-def get_overall_devices_health(all_devices_health_dict):
+def get_overall_devices_health(all_devices_health_dict, deviceRole = ''):
     """
     This function will correlate data from the all_devices_health_dict
     :all_devices_health_dict: all_devices_health_dict
     :return: overall devices health
     """
+    if not deviceRole:
+        deviceRole = 'ALL'
     overall_devices_health = {
-                                'Total': 0,
-                                'Up': 0,
-                                'Down': 0,
-                                'Reachable': 0,
-                                'Ping Reachable': 0,
-                                'down_list': []
+                                deviceRole: {
+                                                'Total': 0,
+                                                'Up': 0,
+                                                'Down': 0,
+                                                'Reachable': 0,
+                                                'Ping Reachable': 0,
+                                                'down_list': []
                                 }
-    overall_devices_health['Total'] = len(all_devices_health_dict)
+                            }
+    overall_devices_health[deviceRole]['Total'] = len(all_devices_health_dict)
     for device in all_devices_health_dict:
         if all_devices_health_dict[device]['reachabilityHealth'] == 'DOWN' or \
             all_devices_health_dict[device]['reachabilityHealth'] == 'UNREACHABLE':
-            overall_devices_health['Down'] += 1
-            overall_devices_health['down_list'] += { all_devices_health_dict[device]['name'],
+            overall_devices_health[deviceRole]['Down'] += 1
+            overall_devices_health[deviceRole]['down_list'] += { all_devices_health_dict[device]['name'],
                                                     all_devices_health_dict[device]['ipAddress'],
                                                     all_devices_health_dict[device]['ipAddress'],
                                                     all_devices_health_dict[device]['location'] }
         elif all_devices_health_dict[device]['reachabilityHealth'] == 'REACHABLE':
-            overall_devices_health['Reachable'] += 1
+            overall_devices_health[deviceRole]['Reachable'] += 1
         elif all_devices_health_dict[device]['reachabilityHealth'] == 'PING_REACHABLE':
-            overall_devices_health['Ping Reachable'] += 1
-    overall_devices_health['Up'] = overall_devices_health['Total'] - overall_devices_health['Down']
+            overall_devices_health[deviceRole]['Ping Reachable'] += 1
+    overall_devices_health[deviceRole]['Up'] = overall_devices_health[deviceRole]['Total'] - overall_devices_health[deviceRole]['Down']
     return overall_devices_health
 
 
@@ -227,39 +231,39 @@ def main():
     # print(json.dumps(overall_network_health))  # save the network health to Splunk App index
 
     # get all the devices health info, 500 devices collect per each API call (this is the max), print them as dict
-    all_devices_health_dict = get_all_device_health_dict(5, dnac_auth, deviceRole='')
+    all_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='')
     # print(json.dumps(all_devices_health_dict))  # save the all devices info to Splunk App index
-    overall_all_devices_health = get_overall_devices_health(all_devices_health_dict)
+    overall_all_devices_health = get_overall_devices_health(all_devices_health_dict, deviceRole='')
     print(json.dumps(overall_all_devices_health))
 
     # get all the CORE health info, 500 devices collect per each API call (this is the max), print them as dict
-    CORE_devices_health_dict = get_all_device_health_dict(5, dnac_auth, deviceRole='CORE')
-    overall_CORE_devices_health = get_overall_devices_health(CORE_devices_health_dict)
+    CORE_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='CORE')
+    overall_CORE_devices_health = get_overall_devices_health(CORE_devices_health_dict, deviceRole='CORE')
     print(json.dumps(overall_CORE_devices_health))
 
     # get all the ACCESS health info, 500 devices collect per each API call (this is the max), print them as dict
-    ACCESS_devices_health_dict = get_all_device_health_dict(5, dnac_auth, deviceRole='ACCESS')
-    overall_ACCESS_devices_health = get_overall_devices_health(ACCESS_devices_health_dict)
+    ACCESS_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='ACCESS')
+    overall_ACCESS_devices_health = get_overall_devices_health(ACCESS_devices_health_dict, deviceRole='ACCESS')
     print(json.dumps(overall_ACCESS_devices_health))
 
     # get all the DISTRIBUTION health info, 500 devices collect per each API call (this is the max), print them as dict
-    DISTRIBUTION_devices_health_dict = get_all_device_health_dict(5, dnac_auth, deviceRole='DISTRIBUTION')
-    overall_DISTRIBUTION_devices_health = get_overall_devices_health(DISTRIBUTION_devices_health_dict)
+    DISTRIBUTION_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='DISTRIBUTION')
+    overall_DISTRIBUTION_devices_health = get_overall_devices_health(DISTRIBUTION_devices_health_dict, deviceRole='DISTRIBUTION')
     print(json.dumps(overall_DISTRIBUTION_devices_health))
 
     # get all the ROUTER health info, 500 devices collect per each API call (this is the max), print them as dict
-    ROUTER_devices_health_dict = get_all_device_health_dict(5, dnac_auth, deviceRole='ROUTER')
-    overall_ROUTER_devices_health = get_overall_devices_health(ROUTER_devices_health_dict)
+    ROUTER_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='ROUTER')
+    overall_ROUTER_devices_health = get_overall_devices_health(ROUTER_devices_health_dict, deviceRole='ROUTER')
     print(json.dumps(overall_ROUTER_devices_health))
 
     # get all the WLC health info, 500 devices collect per each API call (this is the max), print them as dict
-    WLC_devices_health_dict = get_all_device_health_dict(5, dnac_auth, deviceRole='WLC')
-    overall_WLC_devices_health = get_overall_devices_health(WLC_devices_health_dict)
+    WLC_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='WLC')
+    overall_WLC_devices_health = get_overall_devices_health(WLC_devices_health_dict, deviceRole='WLC')
     print(json.dumps(overall_WLC_devices_health))
 
     # get all the AP health info, 500 devices collect per each API call (this is the max), print them as dict
-    AP_devices_health_dict = get_all_device_health_dict(5, dnac_auth, deviceRole='AP')
-    overall_AP_devices_health = get_overall_devices_health(AP_devices_health_dict)
+    AP_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='AP')
+    overall_AP_devices_health = get_overall_devices_health(AP_devices_health_dict, deviceRole='AP')
     print(json.dumps(overall_AP_devices_health))
 
 if __name__ == '__main__':
