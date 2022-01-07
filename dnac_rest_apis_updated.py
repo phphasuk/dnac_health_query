@@ -44,9 +44,9 @@ urllib3.disable_warnings(InsecureRequestWarning)  # disable insecure https warni
 
 # Cisco DNA Center info
 
-username = 'username'
-password = 'password'
-DNAC_URL = 'https://10.122.20.139'
+username = 'admin'
+password = 'C!sc0123'
+DNAC_URL = 'https://10.122.21.195'
 
 
 DNAC_AUTH = HTTPBasicAuth(username, password)
@@ -180,7 +180,10 @@ def get_overall_devices_health(all_devices_health_dict):
         if all_devices_health_dict[device]['reachabilityHealth'] == 'DOWN' or \
             all_devices_health_dict[device]['reachabilityHealth'] == 'UNREACHABLE':
             overall_devices_health['Down'] += 1
-            overall_devices_health['down_list'] += { all_devices_health_dict[device]['name'],all_devices_health_dict[device]['ipAddress'],all_devices_health_dict[device]['ipAddress'] }
+            overall_devices_health['down_list'] += { all_devices_health_dict[device]['name'],
+                                                    all_devices_health_dict[device]['ipAddress'],
+                                                    all_devices_health_dict[device]['ipAddress'],
+                                                    all_devices_health_dict[device]['location'] }
         elif all_devices_health_dict[device]['reachabilityHealth'] == 'REACHABLE':
             overall_devices_health['Reachable'] += 1
         elif all_devices_health_dict[device]['reachabilityHealth'] == 'PING_REACHABLE':
