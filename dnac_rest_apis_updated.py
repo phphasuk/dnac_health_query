@@ -185,6 +185,7 @@ def get_all_device_health_dict(limit, dnac_jwt_token, deviceRole='', location_ke
     all_devices_health_dict = {}
     all_devices_health_list = []
     all_devices_health = ['']  # assign a value, to make sure the API call will run at least once
+    runtime = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     while all_devices_health:
         while all_devices_health:
             all_devices_health = ''
@@ -201,6 +202,7 @@ def get_all_device_health_dict(limit, dnac_jwt_token, deviceRole='', location_ke
     for device in all_devices_health_list:
         if re.search(location_key, device['location']):
             all_devices_health_dict.update({device['name']: device})
+            device['timestamp'] = runtime
     return all_devices_health_dict
 
 
