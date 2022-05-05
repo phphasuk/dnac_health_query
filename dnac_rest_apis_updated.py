@@ -130,6 +130,7 @@ def get_siteid(all_sites_info, site_keyword):
             siteid.append(site['id'])
     return siteid
 
+
 def get_all_device_dict(limit, dnac_jwt_token):
     """
     The function will return all network devices info, using the specified limit of devices/API Call
@@ -257,6 +258,25 @@ def get_overall_devices_health(all_devices_health_dict, deviceRole=''):
     return
 
 
+def get_overall_client_health_dict(dnac_jwt_token):
+    """
+    The function will return overall client health info, using the specified API Call
+    :param dnac_jwt_token: Cisco DNA C token
+    :return: DNA C overall client health info
+    """
+    overall_client_health_dict = {}
+    url = DNAC_URL + '/dna/intent/api/v1/client-health'
+    header = {'content-type': 'application/json', 'x-auth-token': dnac_jwt_token}
+    response = requests.get(url, headers=header, verify=False)
+    overall_client_health_dict = response.json()['response'][0]
+    return overall_client_health_dict
+
+
+def get_overall_client_health(overall_client_health_dict):
+    print(json.dumps(overall_client_health_dict))
+    return
+
+
 def pprint(json_data):
     """
     Pretty print JSON formatted data
@@ -319,8 +339,11 @@ def main():
     AP_devices_health_dict = get_all_device_health_dict(1000, dnac_auth, deviceRole='AP', location_key='')
     get_overall_devices_health(AP_devices_health_dict, deviceRole='AP')
 
+    overall_client_health_dict = get_overall_client_health_dict(dnac_auth)
+    get_overall_client_health(overall_client_health_dict)
+
+
 
 if __name__ == '__main__':
     main()
-
 
